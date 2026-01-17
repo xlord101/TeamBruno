@@ -6,6 +6,21 @@ interface UpdateStatusParams {
   donorName: string;
 }
 
+interface DonorData {
+  donorName: string;
+  phoneNumber: string;
+  channel: string;
+  donationType: string;
+  appointmentDate: string;
+  time: string;
+  status: string;
+}
+
+interface UpdateDetailsParams {
+  rowIndex: number;
+  donor: DonorData;
+}
+
 // ⚠️ IMPORTANT: Replace this URL with your deployed Google Apps Script Web App URL
 // After deploying the script, paste your URL here
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzZR0FnQN0XZtM_HvWyH_ZM11KP5nxaLYIs_tz29z9uZZGF3IxufAlBDnVvLODfCNTx/exec';
@@ -14,49 +29,75 @@ export const useGoogleSheetsAPI = (onDataUpdate?: (updatedRecords: any[]) => voi
   const [isUpdating, setIsUpdating] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
 
-  const updateDonorStatus = async ({ rowIndex, newStatus, donorName }: UpdateStatusParams) => {
+  const callScript = async (payload: any) => {
     setIsUpdating(true);
     setUpdateError(null);
 
     try {
-      // Make the actual API call to Google Apps Script
-      const response = await fetch(APPS_SCRIPT_URL, {
+      await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
-        mode: 'no-cors', // Required for Apps Script
+        mode: 'no-cors',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          action: 'updateDonorStatus',
-          rowIndex: rowIndex,
-          newStatus: newStatus,
-        }),
+        body: JSON.stringify(payload),
       });
 
-      // Note: Due to no-cors mode, we can't read the response directly
-      // The Apps Script will still process the request
-      console.log(`Status update sent for ${donorName} (row ${rowIndex}) to: ${newStatus}`);
-
-      // Trigger data refresh to get the updated data
+      // Trigger data refresh
       if (onDataUpdate) {
-        // Small delay to allow Google Sheets to process
         setTimeout(() => onDataUpdate([]), 1000);
       }
 
-      return { success: true, message: 'Status update request sent' };
-
+      return { success: true };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update status';
+      const errorMessage = error instanceof Error ? error.message : 'Operation failed';
       setUpdateError(errorMessage);
-      console.error('Update error:', error);
+      console.error('API error:', error);
       return { success: false, error: errorMessage };
     } finally {
       setIsUpdating(false);
     }
   };
 
+  const updateDonorStatus = async ({ rowIndex, newStatus, donorName }: UpdateStatusParams) => {
+    console.log(`Status update sent for ${donorName} (row ${rowIndex}) to: ${newStatus}`);
+    return callScript({
+      action: 'updateDonorStatus',
+      rowIndex,
+      newStatus,
+    });
+  };
+
+  const addDonor = async (donor: DonorData) => {
+    console.log('Adding new donor:', donor);
+    return callScript({
+      action: 'addDonor',
+      donor,
+    });
+  };
+
+  const updateDonorDetails = async ({ rowIndex, donor }: UpdateDetailsParams) => {
+    console.log(`Updating details for row ${rowIndex}`, donor);
+    return callScript({
+      action: 'updateDonorDetails',
+      rowIndex,
+      donor,
+    });
+  };
+
+  const deleteDonor = async (rowIndex: number) => {
+    console.log(`Deleting donor at row ${rowIndex}`);
+    return callScript({
+      action: 'deleteDonor',
+      rowIndex,
+    });
+  };
+
   return {
     updateDonorStatus,
+    addDonor,
+    updateDonorDetails,
+    deleteDonor,
     isUpdating,
     updateError,
     isConfigured: true,
